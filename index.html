@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ScriptOCR Master - Premium Handwriting Transcriber</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: {
+                            50: '#f5f7ff',
+                            100: '#ebf0ff',
+                            200: '#d6e0ff',
+                            300: '#b3c7ff',
+                            400: '#85a3ff',
+                            500: '#5c7aff',
+                            600: '#3d52fc',
+                            700: '#2e3ee3',
+                            800: '#2632be',
+                            900: '#232ea2',
+                        },
+                        amberCustom: {
+                            500: '#d97706',
+                            600: '#b45309'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Google Fonts for premium look -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Rubik:ital,wght@0,300..900;1,300..900&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- Tesseract.js for fallback local OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.3/dist/tesseract.min.js"></script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .rtl-editor {
+            font-family: 'Rubik', sans-serif;
+            direction: rtl;
+            text-align: right;
+        }
+        .ltr-editor {
+            font-family: 'Inter', sans-serif;
+            direction: ltr;
+            text-align: left;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .dark ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        .dark ::-webkit-scrollbar-thumb {
+            background: #475569;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        /* Soft pulsing animation for scanning line */
+        @keyframes scan {
+            0% { top: 0%; opacity: 0.8; }
+            50% { top: 100%; opacity: 0.8; }
+            100% { top: 0%; opacity: 0.8; }
+        }
+        .scanning-line {
+            animation: scan 3s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 dark:bg-slate-900 text-slate-800 dark:text-slate-100 min-h-full flex flex-col transition-colors duration-200">
+
+    <!-- Header / Navigation -->
+    <header class="bg-white dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-40 transition-colors duration-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="bg-primary-600 text-white p-2.5 rounded-xl shadow-md shadow-primary-500/20">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2">
+                        ScriptOCR <span class="bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-400 text-xs px-2 py-0.5 rounded-md font-semibold border border-amber-200 dark:border-amber-900/30">Master</span>
+                    </h1>
+                    <p class="text-[10px] text-slate-500 dark:text-slate-400">Offline & AI Multi-Language Handwriting Hub</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center space-x-3">
+                <!-- Engine Info Badge -->
+                <div id="engineStatusBadge" class="hidden sm:flex items-center space-x-1.5 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-medium border border-green-200 dark:border-green-900/30">
+                    <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                    <span>AI Copilot Active</span>
+                </div>
+                
+                <!-- Dark Mode Toggle -->
+                <button id="themeToggle" class="p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition" title="Toggle Theme">
+                    <svg id="themeLightIcon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.46 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" fill-rule="evenodd" clip-rule="evenodd"></path></svg>
+                    <svg id="themeDarkIcon" class="hidden w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 flex flex-col space-y-6">
+        
+        <!-- Alerts & Dynamic Banners -->
+        <div id="offlineAlert" class="hidden bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/30 rounded-2xl p-4 flex items-start space-x-3">
+            <div class="p-1.5 bg-amber-100 dark:bg-amber-900/50 rounded-lg text-amber-800 dark:text-amber-400 mt-0.5">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+            </div>
+            <div class="flex-1">
+                <h4 class="text-sm font-semibold text-amber-900 dark:text-amber-200">True Offline Mode Detection</h4>
+                <p class="text-xs text-amber-700 dark:text-amber-300 mt-0.5">No network connection detected. ScriptOCR has switched to client-side WebOCR. Transcription will happen completely locally, but cursive Hebrew deciphering works best when connected online.</p>
+            </div>
+        </div>
+
+        <!-- Workspace Layout Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch flex-1">
+            
+            <!-- Left Panel: Input, Upload, Adjust (5 Columns) -->
+            <div class="lg:col-span-5 flex flex-col space-y-6">
+                <!-- Upload Box & Preview -->
+                <div class="bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col flex-1">
+                    <div class="p-4 border-b border-slate-100 dark:border-slate-900 flex justify-between items-center bg-slate-50/50 dark:bg-slate-950/50">
+                        <span class="text-sm font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">1. Handwriting Source</span>
+                        <button id="clearBtn" class="hidden text-xs font-semibold text-red-500 hover:text-red-600 transition flex items-center space-x-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                            <span>Clear File</span>
+                        </button>
+                    </div>
+
+                    <!-- Drag and Drop Dropzone -->
+                    <div id="dropzone" class="p-8 flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-primary-500 dark:hover:border-primary-400 m-4 rounded-2xl cursor-pointer transition-all duration-200 bg-slate-50/30 dark:bg-slate-900/10 hover:bg-primary-50/10">
+                        <input type="file" id="fileInput" class="hidden" accept="image/*">
+                        <div class="bg-primary-50 dark:bg-slate-900 p-4 rounded-full text-primary-500 dark:text-primary-400 mb-4 shadow-inner">
+                            <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                            </svg>
+                        </div>
+                        <p class="text-sm font-semibold text-slate-700 dark:text-slate-300">Drag your handwritten photo here</p>
+                        <p class="text-xs text-slate-400 dark:text-slate-500 mt-1">or click to browse from device</p>
+                        <div class="mt-4 flex flex-wrap gap-2 justify-center">
+                            <span class="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400">JPG/PNG</span>
+                            <span class="text-[10px] px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-slate-500 dark:text-slate-400">Optimized for Mixed Hebrew</span>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Scan Preview Area -->
+                    <div id="previewContainer" class="hidden relative p-4 flex-1 flex flex-col justify-center items-center bg-slate-950 min-h-[300px]">
+                        <div class="relative max-w-full max-h-[400px] rounded-xl overflow-hidden shadow-2xl border border-slate-800">
+                            <!-- Canvas containing enhanced image -->
+                            <canvas id="previewCanvas" class="max-w-full max-h-[350px] object-contain block"></canvas>
+                            <!-- Scanning Animation overlay -->
+                            <div id="scannerLine" class="hidden absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary-400 to-transparent shadow-[0_0_15px_#3d52fc] scanning-line"></div>
+                        </div>
+                        
+                        <!-- Interactive Image Enhancers -->
+                        <div class="w-full mt-4 bg-slate-900 border border-slate-800 rounded-xl p-3 space-y-3">
+                            <div class="flex justify-between items-center">
+                                <span class="text-xs font-semibold tracking-wider text-slate-400 uppercase">Image Filters</span>
+                                <button id="resetEnhanceBtn" class="text-[10px] text-primary-400 hover:text-primary-300 font-bold transition">Reset Filters</button>
+                            </div>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <label for="contrastSlider" class="text-[10px] text-slate-400 font-medium">Contrast</label>
+                                        <span id="contrastVal" class="text-[10px] text-slate-500">100%</span>
+                                    </div>
+                                    <input type="range" id="contrastSlider" min="50" max="250" value="100" class="w-full accent-primary-500 bg-slate-800 h-1 rounded-lg appearance-none cursor-pointer">
+                                </div>
+                                <div>
+                                    <div class="flex justify-between mb-1">
+                                        <label for="brightnessSlider" class="text-[10px] text-slate-400 font-medium">Brightness</label>
+                                        <span id="brightnessVal" class="text-[10px] text-slate-500">100%</span>
+                                    </div>
+                                    <input type="range" id="brightnessSlider" min="50" max="200" value="100" class="w-full accent-primary-500 bg-slate-800 h-1 rounded-lg appearance-none cursor-pointer">
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-3 pt-1 border-t border-slate-800">
+                                <label class="flex items-center space-x-2 text-[10px] text-slate-300 cursor-pointer">
+                                    <input type="checkbox" id="grayscaleCheck" class="rounded border-slate-800 text-primary-600 focus:ring-primary-500 bg-slate-950">
+                                    <span>Grayscale (Enhance Ink)</span>
+                                </label>
+                                <label class="flex items-center space-x-2 text-[10px] text-slate-300 cursor-pointer">
+                                    <input type="checkbox" id="invertCheck" class="rounded border-slate-800 text-primary-600 focus:ring-primary-500 bg-slate-950">
+                                    <span>Invert Canvas</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Run Configuration Panel -->
+                <div class="bg-white dark:bg-slate-950 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                    <span class="text-sm font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400 block">2. Engine Settings</span>
+                    
+                    <!-- OCR Engine Selector -->
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Transcription Engine</label>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="selectEngineGemini" class="flex flex-col items-center justify-center p-3 rounded-xl border-2 border-primary-500 bg-primary-50/20 dark:bg-primary-950/10 text-primary-600 dark:text-primary-400 text-left transition duration-150">
+                                <span class="text-xs font-bold">AI Handwriting Copilot</span>
+                                <span class="text-[9px] text-slate-400 mt-0.5">Superb cursive deciphering</span>
+                            </button>
+                            <button id="selectEngineTesseract" class="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700 transition duration-150">
+                                <span class="text-xs font-bold">Local WebOCR</span>
+                                <span class="text-[9px] text-slate-400 mt-0.5">True offline (standard fonts)</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Layout Presets / Custom Instructions for Gemini -->
+                    <div id="geminiPromptOption" class="space-y-2">
+                        <label class="block text-xs font-semibold text-slate-600 dark:text-slate-400 mb-1.5">Deciphering Intelligence Preset</label>
+                        <select id="transcriptionPreset" class="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-700 dark:text-slate-300 focus:ring-2 focus:ring-primary-500 focus:outline-none">
+                            <option value="literal">Literal Cursive Transcription (Perfect for Mixed Hebrew + English)</option>
+                            <option value="bulletPoints">Format to Clear Structured Bullet Points</option>
+                            <option value="translateEn">Decipher & Translate Directly to English</option>
+                            <option value="academic">Academic Notes Transcription & Expansion</option>
+                        </select>
+                    </div>
+
+                    <!-- Scan Trigger -->
+                    <button id="scanBtn" disabled class="w-full bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 font-bold py-4 rounded-2xl shadow-lg transition-all duration-150 flex items-center justify-center space-x-2 cursor-not-allowed">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"></path>
+                        </svg>
+                        <span>Start Transcription</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Right Panel: Editor & Post Processing (7 Columns) -->
+            <div class="lg:col-span-7 flex flex-col space-y-6">
+                <!-- Rich Editor Workspace -->
+                <div class="bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col flex-1 min-h-[500px]">
+                    
+                    <!-- Editor Headers & Controls -->
+                    <div class="p-4 border-b border-slate-100 dark:border-slate-900 flex flex-col sm:flex-row gap-3 sm:items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm font-semibold tracking-wide uppercase text-slate-500 dark:text-slate-400">3. Editable Transcription Output</span>
+                            <span id="charCount" class="text-xs text-slate-400">0 chars</span>
+                        </div>
+                        
+                        <!-- Alignment & Direction Toggles -->
+                        <div class="flex items-center space-x-1.5 self-start">
+                            <button id="setRtlBtn" class="px-2.5 py-1 text-xs font-semibold bg-slate-200 dark:bg-slate-800 rounded-lg hover:bg-slate-300 dark:hover:bg-slate-700 transition active" title="RTL Cursive Note Focus">
+                                RTL (Hebrew)
+                            </button>
+                            <button id="setLtrBtn" class="px-2.5 py-1 text-xs font-semibold bg-slate-100 dark:bg-slate-900 text-slate-500 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition" title="LTR Note Focus">
+                                LTR (English)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Live Transcription Text Area -->
+                    <div class="relative flex-1 flex flex-col">
+                        <textarea id="editorArea" placeholder="Your transcribed text will appear here. Run 'Start Transcription' or write directly..." class="w-full flex-1 p-6 resize-none focus:outline-none bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-all text-base leading-relaxed rtl-editor border-none"></textarea>
+                        
+                        <!-- Transcribing Overlay -->
+                        <div id="loadingOverlay" class="hidden absolute inset-0 bg-white/95 dark:bg-slate-950/95 flex flex-col items-center justify-center p-6 space-y-4 backdrop-blur-sm">
+                            <!-- Premium Spinner -->
+                            <div class="relative w-16 h-16">
+                                <div class="absolute inset-0 border-4 border-primary-100 dark:border-primary-950/30 rounded-full"></div>
+                                <div class="absolute inset-0 border-4 border-primary-600 border-t-transparent rounded-full animate-spin"></div>
+                            </div>
+                            <div class="text-center space-y-1 max-w-sm">
+                                <h4 id="loadingHeader" class="text-base font-bold text-slate-900 dark:text-white animate-pulse">Initializing Scanner Engine...</h4>
+                                <p id="loadingSub" class="text-xs text-slate-500 dark:text-slate-400">Extracting pixels, optimizing contrast layers, and analyzing handwritten glyph boundaries.</p>
+                            </div>
+                            <!-- Live status ticker -->
+                            <div class="bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-1.5 text-[10px] text-slate-500 font-mono tracking-wide">
+                                STATUS: <span id="tickerText">idle_scanner_ready</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Editing Actions & AI refinement -->
+                    <div id="aiActionTray" class="p-3 bg-slate-50/70 dark:bg-slate-950/70 border-t border-slate-100 dark:border-slate-900 flex flex-wrap gap-2 items-center justify-between">
+                        <!-- AI Polish Helpers -->
+                        <div class="flex flex-wrap gap-1.5">
+                            <button id="aiFormatBtn" class="flex items-center space-x-1 px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 transition">
+                                🪄 <span>Clean Hebrew Formatting</span>
+                            </button>
+                            <button id="aiTranslateBtn" class="flex items-center space-x-1 px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 transition">
+                                🇺🇸 <span>Translate EN</span>
+                            </button>
+                            <button id="aiTaskBtn" class="flex items-center space-x-1 px-3 py-1.5 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-xs font-semibold rounded-lg text-slate-700 dark:text-slate-300 transition">
+                                ✅ <span>Extract Action Items</span>
+                            </button>
+                        </div>
+                        
+                        <!-- Text Copy and Download -->
+                        <div class="flex items-center gap-1.5">
+                            <button id="copyBtn" class="flex items-center space-x-1 px-3 py-1.5 bg-primary-600 hover:bg-primary-700 text-white text-xs font-bold rounded-lg shadow-sm transition">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"></path></svg>
+                                <span>Copy Text</span>
+                            </button>
+                            <div class="relative inline-block text-left" id="downloadMenuContainer">
+                                <button id="downloadDropdownBtn" class="flex items-center space-x-1 px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition">
+                                    <span>Download</span>
+                                    <svg class="w-3 h-3 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                </button>
+                                <!-- Download Dropdown Options -->
+                                <div id="downloadDropdownMenu" class="hidden absolute right-0 bottom-full mb-2 w-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-xl z-50 overflow-hidden">
+                                    <button id="downloadTxtBtn" class="w-full text-left px-4 py-2.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2 font-medium">
+                                        <span>📝 Plain Text (.txt)</span>
+                                    </button>
+                                    <button id="downloadDocBtn" class="w-full text-left px-4 py-2.5 text-xs text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 flex items-center space-x-2 font-medium">
+                                        <span>📁 Word Document (.rtf)</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Copilot Chat Interface (Expandable Note Actions) -->
+                <div class="bg-white dark:bg-slate-950 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm p-5 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                            <span class="text-xs px-2 py-0.5 bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-400 font-bold rounded-md">AI Copilot</span>
+                            <span class="text-xs font-bold text-slate-700 dark:text-slate-300">Interact & Ask about your notes</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <input type="text" id="copilotInput" placeholder="Ask AI: 'Summarize this', 'Write a formal email based on this content'..." class="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2.5 text-xs focus:ring-2 focus:ring-primary-500 focus:outline-none">
+                        <button id="copilotSendBtn" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs px-4 rounded-xl shadow-sm transition flex items-center justify-center">
+                            Ask Copilot
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- Custom Popups / Toast Notifications -->
+    <div id="toast" class="fixed bottom-6 right-6 transform translate-y-12 opacity-0 bg-slate-900 dark:bg-slate-850 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 ease-out z-50 flex items-center space-x-2 border border-slate-800">
+        <span id="toastIcon">💡</span>
+        <span id="toastMessage">Default Toast Notification!</span>
+    </div>
+
+    <!-- Script Execution Space -->
+    <script>
+        // Setup initial Global configs and API defaults
+        const apiKey = ""; // The execution environment supplies this key dynamically 
+        const modelName = "gemini-2.5-flash-preview-09-2025";
+        
+        // Element references
+        const dropzone = document.getElementById('dropzone');
+        const fileInput = document.getElementById('fileInput');
+        const previewContainer = document.getElementById('previewContainer');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const previewCtx = previewCanvas.getContext('2d');
+        const clearBtn = document.getElementById('clearBtn');
+        const scannerLine = document.getElementById('scannerLine');
+        const scanBtn = document.getElementById('scanBtn');
+        const editorArea = document.getElementById('editorArea');
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        const loadingHeader = document.getElementById('loadingHeader');
+        const loadingSub = document.getElementById('loadingSub');
+        const tickerText = document.getElementById('tickerText');
+        const charCount = document.getElementById('charCount');
+        const copyBtn = document.getElementById('copyBtn');
+        
+        const setRtlBtn = document.getElementById('setRtlBtn');
+        const setLtrBtn = document.getElementById('setLtrBtn');
+        
+        const contrastSlider = document.getElementById('contrastSlider');
+        const brightnessSlider = document.getElementById('brightnessSlider');
+        const contrastVal = document.getElementById('contrastVal');
+        const brightnessVal = document.getElementById('brightnessVal');
+        const grayscaleCheck = document.getElementById('grayscaleCheck');
+        const invertCheck = document.getElementById('invertCheck');
+        const resetEnhanceBtn = document.getElementById('resetEnhanceBtn');
+        
+        const engineStatusBadge = document.getElementById('engineStatusBadge');
+        const selectEngineGemini = document.getElementById('selectEngineGemini');
+        const selectEngineTesseract = document.getElementById('selectEngineTesseract');
+        const geminiPromptOption = document.getElementById('geminiPromptOption');
+        const transcriptionPreset = document.getElementById('transcriptionPreset');
+        const offlineAlert = document.getElementById('offlineAlert');
+        
+        const downloadDropdownBtn = document.getElementById('downloadDropdownBtn');
+        const downloadDropdownMenu = document.getElementById('downloadDropdownMenu');
+        const downloadTxtBtn = document.getElementById('downloadTxtBtn');
+        const downloadDocBtn = document.getElementById('downloadDocBtn');
+        
+        const copilotInput = document.getElementById('copilotInput');
+        const copilotSendBtn = document.getElementById('copilotSendBtn');
+        const aiFormatBtn = document.getElementById('aiFormatBtn');
+        const aiTranslateBtn = document.getElementById('aiTranslateBtn');
+        const aiTaskBtn = document.getElementById('aiTaskBtn');
+
+        // App state variables
+        let selectedEngine = 'gemini'; // 'gemini' or 'tesseract'
+        let originalImage = null; // Stored HTML Image element
+        let processedImageBase64 = null; // Stored processed image data (JPEG Base64)
+        let isOnline = navigator.onLine;
+
+        // Custom ticker intervals
+        let tickerInterval = null;
+        const progressMessages = [
+            "Initializing neural scanning nodes...",
+            "Analyzing pixel color vectors...",
+            "Optimizing image contrast layers...",
+            "Running high-pass ink thresholding filter...",
+            "Extracting mixed-characters boundary markers...",
+            "Contextualizing Hebrew cursives with custom dictionaries...",
+            "Mapping margin references and secondary notes...",
+            "Resolving ambiguities for hand-drawn characters..."
+        ];
+
+        // Theme management
+        const themeToggle = document.getElementById('themeToggle');
+        const themeLightIcon = document.getElementById('themeLightIcon');
+        const themeDarkIcon = document.getElementById('themeDarkIcon');
+
+        function initTheme() {
+            if (localStorage.getItem('color-theme') === 'dark' || (!('color-theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+                document.documentElement.classList.add('dark');
+                themeLightIcon.classList.remove('hidden');
+            } else {
+                document.documentElement.classList.remove('dark');
+                themeDarkIcon.classList.remove('hidden');
+            }
+        }
+
+        themeToggle.addEventListener('click', function() {
+            themeLightIcon.classList.toggle('hidden');
+            themeDarkIcon.classList.toggle('hidden');
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('color-theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('color-theme', 'dark');
+            }
+        });
+
+        initTheme();
+
+        // Check for offline/online state
+        window.addEventListener('online', () => {
+            isOnline = true;
+            offlineAlert.classList.add('hidden');
+            switchEngine('gemini');
+        });
+        window.addEventListener('offline', () => {
+            isOnline = false;
+            offlineAlert.classList.remove('hidden');
+            switchEngine('tesseract');
+        });
+
+        // Setup engine selectors
+        function switchEngine(engine) {
+            selectedEngine = engine;
+            if (engine === 'gemini') {
+                selectEngineGemini.className = "flex flex-col items-center justify-center p-3 rounded-xl border-2 border-primary-500 bg-primary-50/20 dark:bg-primary-950/10 text-primary-600 dark:text-primary-400 text-left transition duration-150";
+                selectEngineTesseract.className = "flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700 transition duration-150";
+                geminiPromptOption.classList.remove('opacity-40', 'pointer-events-none');
+                engineStatusBadge.className = "flex items-center space-x-1.5 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-400 px-3 py-1 rounded-full text-xs font-medium border border-green-200 dark:border-green-900/30";
+                engineStatusBadge.querySelector('span:last-child').textContent = "AI Copilot Active";
+            } else {
+                selectEngineTesseract.className = "flex flex-col items-center justify-center p-3 rounded-xl border-2 border-primary-500 bg-primary-50/20 dark:bg-primary-950/10 text-primary-600 dark:text-primary-400 text-left transition duration-150";
+                selectEngineGemini.className = "flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700 transition duration-150";
+                geminiPromptOption.classList.add('opacity-40', 'pointer-events-none');
+                engineStatusBadge.className = "flex items-center space-x-1.5 bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-400 px-3 py-1 rounded-full text-xs font-medium border border-amber-200 dark:border-amber-900/30";
+                engineStatusBadge.querySelector('span:last-child').textContent = "Local Tesseract Active";
+                if (isOnline) {
+                    showToast("ℹ️ Standard local Tesseract engine chosen manually.", "💡");
+                }
+            }
+        }
+
+        selectEngineGemini.addEventListener('click', () => {
+            if (!isOnline) {
+                showToast("⚠️ Can't switch to AI Copilot: offline.", "❌");
+                return;
+            }
+            switchEngine('gemini');
+        });
+        selectEngineTesseract.addEventListener('click', () => switchEngine('tesseract'));
+
+        // Handle Image drag-and-drop & uploads
+        dropzone.addEventListener('click', () => fileInput.click());
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('border-primary-500', 'bg-primary-50/25');
+        });
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('border-primary-500', 'bg-primary-50/25');
+        });
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('border-primary-500', 'bg-primary-50/25');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) handleFile(files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) handleFile(e.target.files[0]);
+        });
+
+        function handleFile(file) {
+            if (!file.type.startsWith('image/')) {
+                showToast("Please upload an image file (PNG/JPG).", "⚠️");
+                return;
+            }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    originalImage = img;
+                    applyFilters();
+                    dropzone.classList.add('hidden');
+                    previewContainer.classList.remove('hidden');
+                    clearBtn.classList.remove('hidden');
+                    
+                    // Enable the scanning button
+                    scanBtn.disabled = false;
+                    scanBtn.className = "w-full bg-primary-600 hover:bg-primary-700 text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary-500/20 hover:shadow-primary-500/30 transition-all duration-150 flex items-center justify-center space-x-2 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0";
+                    showToast("Image loaded! Enhance with filters or start scan directly.", "✨");
+                }
+                img.src = e.target.result;
+            }
+            reader.readAsDataURL(file);
+        }
+
+        // Apply HTML5 Canvas Filter adjustments for premium look
+        function applyFilters() {
+            if (!originalImage) return;
+            const contrast = contrastSlider.value;
+            const brightness = brightnessSlider.value;
+            const isGrayscale = grayscaleCheck.checked;
+            const isInverted = invertCheck.checked;
+            
+            contrastVal.textContent = `${contrast}%`;
+            brightnessVal.textContent = `${brightness}%`;
+
+            const canvasWidth = originalImage.width;
+            const canvasHeight = originalImage.height;
+            
+            // Set internal width of Canvas
+            previewCanvas.width = canvasWidth;
+            previewCanvas.height = canvasHeight;
+            
+            // Clear prior canvas elements
+            previewCtx.clearRect(0, 0, canvasWidth, canvasHeight);
+            
+            // Build filter string
+            let filterString = `contrast(${contrast}%) brightness(${brightness}%)`;
+            if (isGrayscale) filterString += ` grayscale(100%)`;
+            if (isInverted) filterString += ` invert(100%)`;
+            
+            previewCtx.filter = filterString;
+            previewCtx.drawImage(originalImage, 0, 0, canvasWidth, canvasHeight);
+            
+            // Extract optimized base64 for Gemini payload 
+            processedImageBase64 = previewCanvas.toDataURL('image/jpeg', 0.8).replace(/^data:image\/[a-z]+;base64,/, "");
+        }
+
+        // Filter events
+        contrastSlider.addEventListener('input', applyFilters);
+        brightnessSlider.addEventListener('input', applyFilters);
+        grayscaleCheck.addEventListener('change', applyFilters);
+        invertCheck.addEventListener('change', applyFilters);
+        resetEnhanceBtn.addEventListener('click', () => {
+            contrastSlider.value = 100;
+            brightnessSlider.value = 100;
+            grayscaleCheck.checked = false;
+            invertCheck.checked = false;
+            applyFilters();
+            showToast("Filters reset to default defaults.", "🔄");
+        });
+
+        // Reset canvas & file input state
+        clearBtn.addEventListener('click', () => {
+            originalImage = null;
+            processedImageBase64 = null;
+            previewContainer.classList.add('hidden');
+            clearBtn.classList.add('hidden');
+            dropzone.classList.remove('hidden');
+            fileInput.value = '';
+            scanBtn.disabled = true;
+            scanBtn.className = "w-full bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-600 font-bold py-4 rounded-2xl shadow-lg transition-all duration-150 flex items-center justify-center space-x-2 cursor-not-allowed";
+        });
+
+        // Text editor direction controls
+        setRtlBtn.addEventListener('click', () => {
+            editorArea.className = "w-full flex-1 p-6 resize-none focus:outline-none bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-all text-base leading-relaxed rtl-editor border-none";
+            setRtlBtn.classList.add('bg-slate-200', 'dark:bg-slate-800');
+            setRtlBtn.classList.remove('bg-slate-100', 'dark:bg-slate-900', 'text-slate-500');
+            setLtrBtn.classList.add('bg-slate-100', 'dark:bg-slate-900', 'text-slate-500');
+            setLtrBtn.classList.remove('bg-slate-200', 'dark:bg-slate-800');
+        });
+
+        setLtrBtn.addEventListener('click', () => {
+            editorArea.className = "w-full flex-1 p-6 resize-none focus:outline-none bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-all text-base leading-relaxed ltr-editor border-none";
+            setLtrBtn.classList.add('bg-slate-200', 'dark:bg-slate-800');
+            setLtrBtn.classList.remove('bg-slate-100', 'dark:bg-slate-900', 'text-slate-500');
+            setRtlBtn.classList.add('bg-slate-100', 'dark:bg-slate-900', 'text-slate-500');
+            setRtlBtn.classList.remove('bg-slate-200', 'dark:bg-slate-800');
+        });
+
+        // Live stats character tracker
+        editorArea.addEventListener('input', () => {
+            charCount.textContent = `${editorArea.value.length} chars`;
+        });
+
+        // Clipboard Copy Helper
+        copyBtn.addEventListener('click', () => {
+            if (!editorArea.value) {
+                showToast("Editor is empty. Translate or input text first.", "⚠️");
+                return;
+            }
+            editorArea.select();
+            document.execCommand('copy');
+            showToast("Text successfully copied to clipboard!", "📋");
+        });
+
+        // Trigger dynamic downloads
+        downloadDropdownBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            downloadDropdownMenu.classList.toggle('hidden');
+        });
+
+        document.addEventListener('click', () => {
+            downloadDropdownMenu.classList.add('hidden');
+        });
+
+        downloadTxtBtn.addEventListener('click', () => {
+            const blob = new Blob([editorArea.value], { type: 'text/plain;charset=utf-8' });
+            triggerDownload(blob, 'transcription_text.txt');
+        });
+
+        downloadDocBtn.addEventListener('click', () => {
+            // Generates a simple MS-word readable rich format file.
+            const textContent = editorArea.value;
+            // Clean control variables to match standard layout
+            const formattedContent = textContent.replace(/\n/g, '\\par\n');
+            const rtfBody = `{\\rtf1\\ansi\\ansicpg1255\\deff0\\deflang1037{\\fonttbl{\\f0\\fnil\\fcharset177 Rubik;}{\\f1\\fnil\\fcharset0 Arial;}}\n{\\rtlch\\f0\\fs24 ${formattedContent}}\n}`;
+            const blob = new Blob([rtfBody], { type: 'application/rtf' });
+            triggerDownload(blob, 'transcription_document.rtf');
+        });
+
+        function triggerDownload(blob, fileName) {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast(`Downloaded successfully as ${fileName}`, "📁");
+        }
+
+        // Custom Toast Helper
+        function showToast(message, icon = "ℹ️") {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastIcon').textContent = icon;
+            document.getElementById('toastMessage').textContent = message;
+            
+            toast.className = "fixed bottom-6 right-6 transform translate-y-0 opacity-100 bg-slate-900 dark:bg-slate-850 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 ease-out z-50 flex items-center space-x-2 border border-slate-800";
+            
+            setTimeout(() => {
+                toast.className = "fixed bottom-6 right-6 transform translate-y-12 opacity-0 bg-slate-900 dark:bg-slate-850 text-white text-xs font-semibold px-4 py-3 rounded-xl shadow-2xl transition-all duration-300 ease-out z-50 flex items-center space-x-2 border border-slate-800";
+            }, 3500);
+        }
+
+        // Scanning visual progress tickers
+        function startTicker(customMessage = null) {
+            scannerLine.classList.remove('hidden');
+            let i = 0;
+            tickerText.textContent = "scanning_matrix_init";
+            tickerInterval = setInterval(() => {
+                const baseText = customMessage || progressMessages[i % progressMessages.length];
+                tickerText.textContent = baseText;
+                i++;
+            }, 1200);
+        }
+
+        function stopTicker() {
+            scannerLine.classList.add('hidden');
+            clearInterval(tickerInterval);
+            tickerText.textContent = "idle_scanner_ready";
+        }
+
+        // Execute OCR process
+        scanBtn.addEventListener('click', async () => {
+            if (!processedImageBase64) {
+                showToast("Please select a handwriting image first.", "⚠️");
+                return;
+            }
+
+            loadingOverlay.classList.remove('hidden');
+            loadingHeader.textContent = "ScriptOCR Scanning Initiated...";
+            loadingSub.textContent = "Isolating ink artifacts and identifying handwriting glyph properties.";
+            startTicker();
+
+            if (selectedEngine === 'gemini') {
+                await runGeminiOCR();
+            } else {
+                await runTesseractOCR();
+            }
+        });
+
+        // Exponential backoff logic wrapper
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            let delay = 1000;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    if (response.ok) return response;
+                } catch (err) {
+                    // Do not log retry failures to console
+                }
+                await new Promise(resolve => setTimeout(resolve, delay));
+                delay *= 2;
+            }
+            throw new Error("API request failed after max retry attempts.");
+        }
+
+        // AI Gemini Handwriting Decipherer logic
+        async function runGeminiOCR() {
+            const selectedPreset = transcriptionPreset.value;
+            
+            // Build prompt instructions custom tailored to messy mixed cursive Hebrew note transcription!
+            let systemPrompt = `You are the ultimate ScriptOCR Master, an expert cursive epigraphist specialized in deciphering complex, messy cursive handwriting, particularly mixed Hebrew and English script notes.
+            - Provide a highly accurate, word-for-word literal transcription of the handwriting shown.
+            - Decipher both cursive Hebrew (כתב יד עברי) and standard or stylized English symbols/abbreviations (like "GLD", "GDL", etc.).
+            - Maintain the logical page layouts, indentation, margin notes, and line breaks.
+            - For struck-through or crossed-out words, wrap them in Markdown strikethroughs like ~~crossed word~~ so the user knows they were canceled.
+            - For margin notes or circled texts (such as "איך לבצע את המפגש והתכנון"), represent them clearly with structural indicators like "[Margin Note: ...]" or "[Circled text: ...]".
+            - If there's an obvious logical sequence, organize the notes cleanly while preserving the exact semantic intent of the writer.`;
+
+            let userPrompt = "Transcribe the handwritten text from this image literally and accurately. Translate nothing, just output exactly what is written, keeping mixed languages intact.";
+
+            if (selectedPreset === 'bulletPoints') {
+                userPrompt = "Please transcribe the handwriting but organize the transcribed text into elegant, beautifully structured bullet points and action items while preserving both the Hebrew and English keywords.";
+            } else if (selectedPreset === 'translateEn') {
+                userPrompt = "Decipher this handwriting and translate it entirely and smoothly into professional English. Maintain line layouts and outline structure.";
+            } else if (selectedPreset === 'academic') {
+                userPrompt = "Transcribe this notes image literally, and follow up the transcription with a detailed educational summary expanding on each of the points and concepts mentioned.";
+            }
+
+            const requestPayload = {
+                contents: [{
+                    parts: [
+                        { text: userPrompt },
+                        { inlineData: { mimeType: "image/jpeg", data: processedImageBase64 } }
+                    ]
+                }],
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            };
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestPayload)
+                });
+
+                const data = await response.json();
+                const transcribedText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (transcribedText) {
+                    editorArea.value = transcribedText.trim();
+                    charCount.textContent = `${editorArea.value.length} chars`;
+                    
+                    // Auto-align based on output language
+                    const containsHebrew = /[\u0590-\u05FF]/.test(transcribedText);
+                    if (containsHebrew && selectedPreset !== 'translateEn') {
+                        setRtlBtn.click();
+                    } else {
+                        setLtrBtn.click();
+                    }
+                    showToast("OCR Transcription completed successfully!", "🎉");
+                } else {
+                    throw new Error("Transcription returned empty.");
+                }
+            } catch (error) {
+                showToast("Transcription failed. Reverting to local engine or retry. Details: " + error.message, "❌");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+                stopTicker();
+            }
+        }
+
+        // Tesseract Local Fallback Logic (Pure offline capability)
+        async function runTesseractOCR() {
+            loadingHeader.textContent = "Running Local WebOCR...";
+            loadingSub.textContent = "Running offline Tesseract character identification grids.";
+            
+            try {
+                // Get Base64 image URL directly
+                const imageSource = `data:image/jpeg;base64,${processedImageBase64}`;
+                
+                // Set language pack (Hebrew + English)
+                const worker = await Tesseract.createWorker('heb+eng');
+                
+                const result = await worker.recognize(imageSource);
+                const transcribedText = result.data.text;
+                
+                if (transcribedText) {
+                    editorArea.value = transcribedText;
+                    charCount.textContent = `${editorArea.value.length} chars`;
+                    setRtlBtn.click(); // Hebrew defaults to RTL
+                    showToast("Local Tesseract OCR Scan Complete!", "🛡️");
+                } else {
+                    throw new Error("Tesseract produced empty results.");
+                }
+                await worker.terminate();
+            } catch (error) {
+                showToast("Local Tesseract experienced an issue. Check file size/contrast levels.", "⚠️");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+                stopTicker();
+            }
+        }
+
+        // Note Copilot Interactive Chat 
+        copilotSendBtn.addEventListener('click', async () => {
+            const promptValue = copilotInput.value.trim();
+            const documentContent = editorArea.value.trim();
+
+            if (!promptValue) {
+                showToast("Please enter a question or command for the Copilot.", "⚠️");
+                return;
+            }
+
+            if (!documentContent) {
+                showToast("Transcribe some text first so the Copilot has context.", "⚠️");
+                return;
+            }
+
+            loadingOverlay.classList.remove('hidden');
+            loadingHeader.textContent = "Copilot Processing Request...";
+            loadingSub.textContent = "Formulating a context-aware workspace response based on your transcript.";
+            startTicker("Brainstorming context relations...");
+
+            const copilotPrompt = `You are the Copilot of ScriptOCR Master. Here is the transcribed content of the user's handwritten notes:
+            ---
+            ${documentContent}
+            ---
+            Based on the document content above, please perform the following action requested by the user:
+            "${promptValue}"
+            
+            Keep your answer professional, complete, and formatted nicely in Markdown. Help them directly.`;
+
+            const requestPayload = {
+                contents: [{ parts: [{ text: copilotPrompt }] }]
+            };
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestPayload)
+                });
+
+                const data = await response.json();
+                const aiResult = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (aiResult) {
+                    // Inject result into editor so they can edit/export immediately
+                    editorArea.value = editorArea.value + "\n\n---\n### AI Copilot Interaction:\n" + aiResult.trim();
+                    charCount.textContent = `${editorArea.value.length} chars`;
+                    copilotInput.value = "";
+                    showToast("Copilot response appended to your notes!", "🔮");
+                } else {
+                    throw new Error("No response from AI engine.");
+                }
+            } catch (error) {
+                showToast("Copilot query failed: " + error.message, "❌");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+                stopTicker();
+            }
+        });
+
+        // Quick AI Polishing Helpers
+        async function runAIPolish(mode) {
+            const currentContent = editorArea.value.trim();
+            if (!currentContent) {
+                showToast("The transcription editor is currently empty.", "⚠️");
+                return;
+            }
+
+            loadingOverlay.classList.remove('hidden');
+            loadingHeader.textContent = "AI Polish Refining Content...";
+            loadingSub.textContent = "Correcting structure, spacing issues, and optimizing layout flow.";
+            startTicker("Applying stylistic polish...");
+
+            let query = "";
+            if (mode === 'format') {
+                query = `The following text is a handwritten transcription. Polish it to be structured neatly in Markdown. Correct obvious spelling mistakes and messy alignments while preserving both Hebrew and English words exactly as they are. Keep it bilingual:
+                \n\n${currentContent}`;
+            } else if (mode === 'translate') {
+                query = `Translate the following Hebrew/English transcription into highly professional, elegant English. Maintain line layout and list details:
+                \n\n${currentContent}`;
+            } else if (mode === 'tasks') {
+                query = `Extract a clear actionable list of bullet points, goals, actions, and questions to answer based on the following notes:
+                \n\n${currentContent}`;
+            }
+
+            const requestPayload = {
+                contents: [{ parts: [{ text: query }] }]
+            };
+
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
+
+            try {
+                const response = await fetchWithRetry(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestPayload)
+                });
+
+                const data = await response.json();
+                const processed = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+                if (processed) {
+                    editorArea.value = processed.trim();
+                    charCount.textContent = `${editorArea.value.length} chars`;
+                    if (mode === 'translate') setLtrBtn.click();
+                    showToast("Polish successfully applied!", "✨");
+                }
+            } catch (error) {
+                showToast("Polish failed: " + error.message, "❌");
+            } finally {
+                loadingOverlay.classList.add('hidden');
+                stopTicker();
+            }
+        }
+
+        aiFormatBtn.addEventListener('click', () => runAIPolish('format'));
+        aiTranslateBtn.addEventListener('click', () => runAIPolish('translate'));
+        aiTaskBtn.addEventListener('click', () => runAIPolish('tasks'));
+
+        // Load default toast advice
+        showToast("Welcome to ScriptOCR Master. Choose or drag a handwriting photo to begin!", "👋");
+    </script>
+</body>
+</html>
